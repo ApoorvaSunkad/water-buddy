@@ -19,8 +19,16 @@ import logging
 import random
 from pathlib import Path
 
-from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QFont, QLinearGradient, QPainter, QPixmap
+from PySide6.QtCore import QRect, QRectF, Qt
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QImage,
+    QLinearGradient,
+    QPainter,
+    QPixmap,
+)
 
 from . import config
 
@@ -33,6 +41,62 @@ PRIMARY_SPRITE = "drinking.png"
 SPRITE_CANDIDATES = (PRIMARY_SPRITE, "idle.png", "character.png", "buddy.png")
 
 _cache: dict[tuple[str, int, float], QPixmap] = {}
+
+# Alpha at or below this counts as background. Not zero, because anti-aliased
+# edges and lossy background removal leave faint halos that would otherwise be
+# treated as part of the character.
+ALPHA_THRESHOLD = 8
+
+
+def _opaque_bounds(image: QImage) -> QRect:
+    """Find the bounding box of the actually-visible pixels.
+
+    Exported character renders are usually square with the figure floating in
+    the middle, because that's what image generators and background removers
+    produce. Using that raw canvas would mean a window mostly full of nothing:
+    the character would sit far from the screen corner and hover above the
+    taskbar instead of standing on it.
+
+    Cropping to the real content makes the app independent of how the artwork
+    happens to be framed -- drop in any transparent PNG and it lands correctly.
+
+    Implemented by scanning the alpha byte of each pixel. The per-row work is
+    done by ``bytes.translate`` and ``find``/``rfind``, which run in C, so a
+    500x500 image costs well under a millisecond and the result is cached.
+    """
+    if image.isNull():
+        return QRect()
+
+    image = image.convertToFormat(QImage.Format.Format_ARGB32)
+    width, height = image.width(), image.height()
+    stride = image.bytesPerLine()
+    data = image.constBits().tobytes()
+
+    # Map "alpha above threshold" to 1 and everything else to 0, so a row's
+    # opaque span becomes a simple search for the first and last 1 byte.
+    table = bytes(0 if value <= ALPHA_THRESHOLD else 1 for value in range(256))
+
+    top, bottom = height, -1
+    left, right = width, -1
+
+    for y in range(height):
+        row = data[y * stride: y * stride + width * 4]
+        alpha = row[3::4]  # ARGB32 is stored B,G,R,A on little-endian
+        mask = alpha.translate(table)
+        first = mask.find(b"\x01")
+        if first == -1:
+            continue  # fully transparent row
+        last = mask.rfind(b"\x01")
+
+        if top == height:
+            top = y
+        bottom = y
+        left = min(left, first)
+        right = max(right, last)
+
+    if bottom < 0:
+        return QRect()  # image is entirely transparent
+    return QRect(left, top, right - left + 1, bottom - top + 1)
 
 
 def available_characters() -> list[str]:
@@ -79,14 +143,26 @@ def load_sprite(character_id: str, height_px: int, dpr: float = 1.0) -> QPixmap:
                     character_id, config.CHARACTERS_DIR / character_id / PRIMARY_SPRITE)
         pixmap = _placeholder(character_id, physical_height)
     else:
-        source = QPixmap(str(path))
-        if source.isNull():
+        image = QImage(str(path))
+        if image.isNull():
             log.error("Could not decode %s; using a placeholder", path)
             pixmap = _placeholder(character_id, physical_height)
         else:
-            pixmap = source.scaledToHeight(
-                physical_height, Qt.TransformationMode.SmoothTransformation
-            )
+            bounds = _opaque_bounds(image)
+            if bounds.isEmpty():
+                log.error("%s is fully transparent; using a placeholder", path)
+                pixmap = _placeholder(character_id, physical_height)
+            else:
+                if bounds.size() != image.size():
+                    log.info(
+                        "Cropped %s from %dx%d to %dx%d (trimmed empty space)",
+                        path.name, image.width(), image.height(),
+                        bounds.width(), bounds.height(),
+                    )
+                    image = image.copy(bounds)
+                pixmap = QPixmap.fromImage(image).scaledToHeight(
+                    physical_height, Qt.TransformationMode.SmoothTransformation
+                )
 
     pixmap.setDevicePixelRatio(dpr)
     _cache[key] = pixmap
