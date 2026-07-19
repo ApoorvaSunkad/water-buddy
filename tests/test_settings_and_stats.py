@@ -79,6 +79,24 @@ def test_out_of_range_values_are_clamped(isolated_paths):
     assert settings.character == "female"
 
 
+def test_entrance_style_round_trips():
+    Settings(entrance_style="walk").save()
+    assert Settings.load().entrance_style == "walk"
+
+
+def test_unknown_entrance_style_falls_back_to_glide(isolated_paths):
+    config.SETTINGS_FILE.write_text(
+        json.dumps({"entrance_style": "moonwalk"}), encoding="utf-8"
+    )
+    assert Settings.load().entrance_style == "glide"
+
+
+def test_entrance_style_defaults_to_glide():
+    """Glide is the safe default: it suits a standing pose, which is what
+    single-image character renders almost always are."""
+    assert Settings().entrance_style == "glide"
+
+
 def test_save_is_atomic(isolated_paths):
     """No stray temp file should survive a successful save."""
     Settings(interval_minutes=33).save()

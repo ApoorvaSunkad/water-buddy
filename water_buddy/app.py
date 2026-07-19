@@ -204,6 +204,7 @@ class WaterBuddyApp:
             message=message,
             hold_seconds=self.settings.display_seconds,
             monitor_index=self.settings.monitor_index,
+            entrance=self.settings.entrance_style,
         )
 
     def _on_glass_logged(self) -> None:

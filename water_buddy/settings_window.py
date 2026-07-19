@@ -266,6 +266,21 @@ class SettingsWindow(QWidget):
         self.art_warning.hide()
         root.addWidget(self.art_warning)
 
+        entrance_row = QHBoxLayout()
+        entrance_row.addWidget(QLabel("Entrance:"))
+        self.entrance_combo = QComboBox()
+        self.entrance_combo.addItem("Smooth glide", "glide")
+        self.entrance_combo.addItem("Bouncy walk", "walk")
+        self.entrance_combo.setToolTip(
+            "Smooth glide suits a character drawn standing still.\n"
+            "Bouncy walk adds a bob and rock — only convincing if the pose\n"
+            "already looks mid-stride, or once you add real walk frames."
+        )
+        self.entrance_combo.currentIndexChanged.connect(self._on_entrance_changed)
+        entrance_row.addWidget(self.entrance_combo)
+        entrance_row.addStretch()
+        root.addLayout(entrance_row)
+
         hold = QHBoxLayout()
         hold.addWidget(QLabel("Stays on screen:"))
         self.hold_slider = QSlider(Qt.Orientation.Horizontal)
@@ -367,6 +382,9 @@ class SettingsWindow(QWidget):
         index = self.character_combo.findData(settings.character)
         self.character_combo.setCurrentIndex(max(0, index))
 
+        index = self.entrance_combo.findData(settings.entrance_style)
+        self.entrance_combo.setCurrentIndex(max(0, index))
+
         self.hold_slider.setValue(settings.display_seconds)
         self.hold_value.setText(f"{settings.display_seconds}s")
         self.goal_spin.setValue(settings.daily_goal_glasses)
@@ -450,6 +468,10 @@ class SettingsWindow(QWidget):
 
     def _on_character_changed(self, _index: int) -> None:
         self._settings.character = self.character_combo.currentData()
+        self._emit()
+
+    def _on_entrance_changed(self, _index: int) -> None:
+        self._settings.entrance_style = self.entrance_combo.currentData()
         self._emit()
 
     def _on_hold_changed(self, value: int) -> None:

@@ -50,6 +50,10 @@ class Settings:
     # "female", "male", or "random" to alternate each time.
     character: str = "female"
 
+    # How the buddy arrives: "glide" (smooth slide, correct for a standing
+    # pose) or "walk" (adds a bob and rock, for art that looks mid-stride).
+    entrance_style: str = "glide"
+
     # --- Where the buddy appears ---
     # Index into the list of screens; 0 is primary. Clamped at runtime in case
     # you unplug a monitor between sessions.
@@ -120,6 +124,8 @@ class Settings:
         )
         if c.character not in (*config.CHARACTER_IDS, "random"):
             c.character = "female"
+        if c.entrance_style not in ("glide", "walk"):
+            c.entrance_style = "glide"
         c.monitor_index = max(0, int(c.monitor_index))
         c.daily_goal_glasses = min(max(int(c.daily_goal_glasses), 1), 30)
         return c
