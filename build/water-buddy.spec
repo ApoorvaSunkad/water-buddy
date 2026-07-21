@@ -40,6 +40,35 @@ a = Analysis(
     noarchive=False,
 )
 
+# Excluding a PySide6 *module* above stops Python importing it, but the Qt
+# *DLLs* still get collected because PyInstaller sees them as dependencies of
+# the Qt libraries it does keep. Dropping them by filename is what actually
+# shrinks the download.
+#
+# Everything below is safe for a plain QtWidgets app:
+#   opengl32sw   - software OpenGL fallback. Widgets render through the raster
+#                  engine, so this is only used by QML/Quick scenes.
+#   Qt6Quick/Qml - the QML runtime. We build the UI in Python, not QML.
+#   Qt6Pdf       - PDF rendering.
+#   Qt6Network*  - kept: single_instance.py needs QLocalServer.
+#
+# If a trimmed build ever fails to start, comment this block out first to find
+# out whether a missing DLL is the cause.
+UNUSED_DLLS = {
+    "opengl32sw.dll",
+    "qt6quick.dll",
+    "qt6qml.dll",
+    "qt6qmlmodels.dll",
+    "qt6qmlmeta.dll",
+    "qt6qmlworkerscript.dll",
+    "qt6pdf.dll",
+    "qt6opengl.dll",
+    "qt6virtualkeyboard.dll",
+}
+
+a.binaries = [entry for entry in a.binaries
+              if Path(entry[0]).name.lower() not in UNUSED_DLLS]
+
 pyz = PYZ(a.pure)
 
 exe = EXE(

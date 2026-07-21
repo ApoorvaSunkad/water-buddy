@@ -95,8 +95,10 @@ class Stats:
         if not path.exists():
             return cls()
         try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+            # utf-8-sig for the same reason as settings.py: tolerate a BOM
+            # written by a Windows editor rather than discarding the file.
+            raw = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
             log.error("Could not read stats (%s); starting fresh", exc)
             return cls()
 

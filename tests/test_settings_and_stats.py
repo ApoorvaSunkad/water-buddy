@@ -67,6 +67,28 @@ def test_corrupt_file_falls_back_to_defaults(isolated_paths):
     assert Settings.load().interval_minutes == 60
 
 
+def test_settings_with_utf8_bom_are_read(isolated_paths):
+    """Notepad and PowerShell's Set-Content write UTF-8 with a byte-order mark.
+
+    A plain utf-8 read raises on the BOM, which used to make the app discard
+    every setting the moment a user hand-edited the file and saved it.
+    """
+    config.SETTINGS_FILE.write_text(
+        json.dumps({"interval_minutes": 25, "daily_goal_glasses": 9}),
+        encoding="utf-8-sig",
+    )
+    loaded = Settings.load()
+    assert loaded.interval_minutes == 25
+    assert loaded.daily_goal_glasses == 9
+
+
+def test_stats_with_utf8_bom_are_read(isolated_paths):
+    config.STATS_FILE.write_text(
+        json.dumps({"days": {"2026-07-20": 4}}), encoding="utf-8-sig"
+    )
+    assert Stats.load().count_for(dt.date(2026, 7, 20)) == 4
+
+
 def test_out_of_range_values_are_clamped(isolated_paths):
     config.SETTINGS_FILE.write_text(
         json.dumps({"interval_minutes": 999999, "display_seconds": -5,

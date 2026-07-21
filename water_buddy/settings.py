@@ -140,8 +140,13 @@ class Settings:
             log.info("No settings file at %s, using defaults", path)
             return cls()
         try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+            # utf-8-sig, not utf-8: Notepad and several Windows editors save
+            # UTF-8 files with a byte-order mark, and a plain utf-8 read fails
+            # on it. The user would open settings.json to change one number,
+            # save it, and silently lose every setting they had. utf-8-sig
+            # strips a BOM when present and behaves like utf-8 when not.
+            raw = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
             log.error("Could not read settings (%s); using defaults", exc)
             return cls()
 
