@@ -25,8 +25,11 @@ a = Analysis(
     hookspath=[],
     runtime_hooks=[],
     # Qt ships a lot we never touch. Excluding it cuts the bundle substantially.
+    # QtNetwork is deliberately NOT excluded: single_instance.py uses
+    # QLocalServer from it. Excluding a module the app imports produces a build
+    # that runs fine from source and crashes only once packaged, which is the
+    # most annoying class of bug there is.
     excludes=[
-        "PySide6.QtNetwork",
         "PySide6.QtQml",
         "PySide6.QtQuick",
         "PySide6.QtWebEngineCore",

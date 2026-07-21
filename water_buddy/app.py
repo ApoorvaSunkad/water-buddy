@@ -26,6 +26,7 @@ from .overlay import BuddyOverlay
 from .scheduler import ReminderScheduler
 from .settings import Settings
 from .settings_window import SettingsWindow
+from .single_instance import SingleInstance
 from .stats import Stats
 from .tray import TrayIcon
 
@@ -84,6 +85,14 @@ class WaterBuddyApp:
         # the process. Without this, Qt exits when the last window closes and
         # the app would vanish the first time you dismissed settings.
         self.qt.setQuitOnLastWindowClosed(False)
+
+        # Must come after QApplication (it needs an event loop) but before we
+        # touch any data files, so a second copy exits without ever reading or
+        # writing the settings and stats the first copy owns.
+        self.guard = SingleInstance(config.APP_NAME)
+        if self.guard.already_running:
+            return
+        self.guard.activated.connect(self.show_settings)
 
         self.settings = Settings.load()
         self.stats = Stats.load()
@@ -302,4 +311,9 @@ class WaterBuddyApp:
 def main(argv: list[str] | None = None) -> int:
     argv = list(argv if argv is not None else sys.argv)
     app = WaterBuddyApp(argv)
+    if app.guard.already_running:
+        # The running copy has been told to show its window. Exiting with 0
+        # rather than an error code: from the user's point of view launching
+        # the app succeeded -- their window appeared.
+        return 0
     return app.run()
